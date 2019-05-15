@@ -21,6 +21,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v2"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api/v1"
 )
 
 // Config the configuration field for gangway
@@ -28,27 +29,27 @@ type Config struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 
-	ClusterName            string   `yaml:"clusterName" envconfig:"cluster_name"`
-	AuthorizeURL           string   `yaml:"authorizeURL" envconfig:"authorize_url"`
-	TokenURL               string   `yaml:"tokenURL" envconfig:"token_url"`
-	ClientID               string   `yaml:"clientID" envconfig:"client_id"`
-	ClientSecret           string   `yaml:"clientSecret" envconfig:"client_secret"`
-	AllowEmptyClientSecret bool     `yaml:"allowEmptyClientSecret" envconfig:"allow_empty_client_secret"`
-	Audience               string   `yaml:"audience" envconfig:"audience"`
-	RedirectURL            string   `yaml:"redirectURL" envconfig:"redirect_url"`
-	Scopes                 []string `yaml:"scopes" envconfig:"scopes"`
-	UsernameClaim          string   `yaml:"usernameClaim" envconfig:"username_claim"`
-	EmailClaim             string   `yaml:"emailClaim" envconfig:"email_claim"`
-	ServeTLS               bool     `yaml:"serveTLS" envconfig:"serve_tls"`
-	CertFile               string   `yaml:"certFile" envconfig:"cert_file"`
-	KeyFile                string   `yaml:"keyFile" envconfig:"key_file"`
-	APIServerURL           string   `yaml:"apiServerURL" envconfig:"apiserver_url"`
-	ClusterCAPath          string   `yaml:"clusterCAPath" envconfig:"cluster_ca_path"`
-	TrustedCAPath          string   `yaml:"trustedCAPath" envconfig:"trusted_ca_path"`
-	HTTPPath               string   `yaml:"httpPath" envconfig:"http_path"`
-
-	SessionSecurityKey     string `yaml:"sessionSecurityKey" envconfig:"SESSION_SECURITY_KEY"`
-	CustomHTMLTemplatesDir string `yaml:"customHTMLTemplatesDir" envconfig:"custom_http_templates_dir"`
+	ClusterName            string                      `yaml:"clusterName" envconfig:"cluster_name"`
+	AuthorizeURL           string                      `yaml:"authorizeURL" envconfig:"authorize_url"`
+	TokenURL               string                      `yaml:"tokenURL" envconfig:"token_url"`
+	ClientID               string                      `yaml:"clientID" envconfig:"client_id"`
+	ClientSecret           string                      `yaml:"clientSecret" envconfig:"client_secret"`
+	AllowEmptyClientSecret bool                        `yaml:"allowEmptyClientSecret" envconfig:"allow_empty_client_secret"`
+	Audience               string                      `yaml:"audience" envconfig:"audience"`
+	RedirectURL            string                      `yaml:"redirectURL" envconfig:"redirect_url"`
+	Scopes                 []string                    `yaml:"scopes" envconfig:"scopes"`
+	UsernameClaim          string                      `yaml:"usernameClaim" envconfig:"username_claim"`
+	EmailClaim             string                      `yaml:"emailClaim" envconfig:"email_claim"`
+	ServeTLS               bool                        `yaml:"serveTLS" envconfig:"serve_tls"`
+	CertFile               string                      `yaml:"certFile" envconfig:"cert_file"`
+	KeyFile                string                      `yaml:"keyFile" envconfig:"key_file"`
+	APIServerURL           string                      `yaml:"apiServerURL" envconfig:"apiserver_url"`
+	ClusterCAPath          string                      `yaml:"clusterCAPath" envconfig:"cluster_ca_path"`
+	TrustedCAPath          string                      `yaml:"trustedCAPath" envconfig:"trusted_ca_path"`
+	HTTPPath               string                      `yaml:"httpPath" envconfig:"http_path"`
+	Clusters               []clientcmdapi.NamedCluster `yaml:"clusters" envconfig:"clusters"`
+	SessionSecurityKey     string                      `yaml:"sessionSecurityKey" envconfig:"SESSION_SECURITY_KEY"`
+	CustomHTMLTemplatesDir string                      `yaml:"customHTMLTemplatesDir" envconfig:"custom_http_templates_dir"`
 }
 
 // NewConfig returns a Config struct from serialized config file
@@ -108,7 +109,7 @@ func (cfg *Config) Validate() error {
 		{cfg.ClientSecret == "" && !cfg.AllowEmptyClientSecret, "no clientSecret specified"},
 		{cfg.RedirectURL == "", "no redirectURL specified"},
 		{cfg.SessionSecurityKey == "", "no SessionSecurityKey specified"},
-		{cfg.APIServerURL == "", "no apiServerURL specified"},
+		{cfg.APIServerURL == "" || len(cfg.Clusters) == 0, "no apiServerURL or clusters configuration specified"},
 	}
 
 	for _, check := range checks {
