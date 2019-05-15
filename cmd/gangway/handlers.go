@@ -51,6 +51,7 @@ type userInfo struct {
 	APIServerURL string
 	ClusterCA    string
 	HTTPPath     string
+	Clusters     []clientcmdapi.NamedCluster
 }
 
 // homeInfo is used to store dynamic properties on
@@ -92,29 +93,34 @@ func serveTemplate(tmplFile string, data interface{}, w http.ResponseWriter) {
 }
 
 func generateKubeConfig(cfg *userInfo) clientcmdapi.Config {
+	//Insert all CA data in all clusters
+	cfg.Clusters = append(cfg.Clusters, clientcmdapi.NamedCluster{
+		Name: cfg.ClusterName,
+		Cluster: clientcmdapi.Cluster{
+			Server:                   cfg.APIServerURL,
+			CertificateAuthorityData: []byte(cfg.ClusterCA),
+		},
+	})
+	/* TODO update this behavior to instead of writing multiple CA data, point to a ca file */
+	// Create contexts and insert CA Data into 'cluster' structure
+	var contexts []clientcmdapi.NamedContext
+	for _, namedCluster := range cfg.Clusters {
+		contexts = append(contexts, clientcmdapi.NamedContext{
+			Name: namedCluster.Name,
+			Context: clientcmdapi.Context{
+				Cluster:  namedCluster.Name,
+				AuthInfo: cfg.Email,
+			},
+		})
+		namedCluster.Cluster.CertificateAuthorityData = []byte(cfg.ClusterCA)
+	}
 	// fill out kubeconfig structure
 	kcfg := clientcmdapi.Config{
 		Kind:           "Config",
 		APIVersion:     "v1",
 		CurrentContext: cfg.ClusterName,
-		Clusters: []clientcmdapi.NamedCluster{
-			{
-				Name: cfg.ClusterName,
-				Cluster: clientcmdapi.Cluster{
-					Server:                   cfg.APIServerURL,
-					CertificateAuthorityData: []byte(cfg.ClusterCA),
-				},
-			},
-		},
-		Contexts: []clientcmdapi.NamedContext{
-			{
-				Name: cfg.ClusterName,
-				Context: clientcmdapi.Context{
-					Cluster:  cfg.ClusterName,
-					AuthInfo: cfg.Email,
-				},
-			},
-		},
+		Clusters:       cfg.Clusters,
+		Contexts:       contexts,
 		AuthInfos: []clientcmdapi.NamedAuthInfo{
 			{
 				Name: cfg.Email,
@@ -376,6 +382,7 @@ func generateInfo(w http.ResponseWriter, r *http.Request) *userInfo {
 		APIServerURL: cfg.APIServerURL,
 		ClusterCA:    string(caBytes),
 		HTTPPath:     cfg.HTTPPath,
+		Clusters:     cfg.Clusters,
 	}
 	return info
 }
