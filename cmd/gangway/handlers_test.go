@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -286,6 +287,14 @@ func TestKubeconfigHandler(t *testing.T) {
 				APIServerURL:  "https://kubernetes",
 				ClientID:      "someClientID",
 				ClientSecret:  "someClientSecret",
+				Clusters: []clientcmdapi.NamedCluster{
+					{
+						Name: "my-dummy-cluster",
+						Cluster: clientcmdapi.Cluster{
+							Server: "https://my-dummy-cluster",
+						},
+					},
+				},
 			},
 			params: map[string]string{
 				"id_token":      "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJHYW5nd2F5VGVzdCIsImlhdCI6MTU0MDA0NjM0NywiZXhwIjoxODg3MjAxNTQ3LCJhdWQiOiJnYW5nd2F5LmhlcHRpby5jb20iLCJzdWIiOiJnYW5nd2F5QGhlcHRpby5jb20iLCJHaXZlbk5hbWUiOiJHYW5nIiwiU3VybmFtZSI6IldheSIsIkVtYWlsIjoiZ2FuZ3dheUBoZXB0aW8uY29tIiwiR3JvdXBzIjoiZGV2LGFkbWluIn0.zNG4Dnxr76J0p4phfsAUYWunioct0krkMiunMynlQsU",
@@ -379,15 +388,18 @@ func TestKubeconfigHandler(t *testing.T) {
 					t.Fatalf("error reading body: %v", err)
 				}
 				kubeconfig := &clientcmdapi.Config{}
+
 				if err := yaml.Unmarshal(bodyBytes, kubeconfig); err != nil {
 					t.Fatalf("error unmarshaling response: %v", err)
 				}
-
 				// Validate cluster
-				if len(kubeconfig.Clusters) != 1 {
+				if len(kubeconfig.Clusters) != 2 {
 					t.Fatalf("Found %d clusters in the generated kubeconfig, expected 1", len(kubeconfig.Clusters))
 				}
-				cluster := kubeconfig.Clusters[0]
+				cluster, err := findInClusters(kubeconfig.Clusters, cfg.ClusterName)
+				if err != nil {
+					t.Errorf("Expected cluster %q to be found in clusters, but got the error: %q", cfg.ClusterName, err)
+				}
 				if cluster.Name != cfg.ClusterName {
 					t.Errorf("Expected cluster name to be %q, but found %q", cfg.ClusterName, kubeconfig.Clusters[0].Name)
 				}
@@ -415,10 +427,13 @@ func TestKubeconfigHandler(t *testing.T) {
 				}
 
 				// Validate context
-				if len(kubeconfig.Contexts) != 1 {
+				if len(kubeconfig.Contexts) != 2 {
 					t.Fatalf("Found %d contexts in the generated kubeconfig, expected 1", len(kubeconfig.Contexts))
 				}
-				context := kubeconfig.Contexts[0]
+				context, err := findInContexts(kubeconfig.Contexts, cfg.ClusterName)
+				if err != nil {
+					t.Errorf("Expected cluster %q to be found in clusters, but got the error: %q", cfg.ClusterName, err)
+				}
 				if context.Name != cfg.ClusterName {
 					t.Errorf("Expected context name to be %q, but found %q", cfg.ClusterName, context.Name)
 				}
@@ -474,4 +489,23 @@ func (f *FakeToken) Exchange(ctx context.Context, code string) (*oauth2.Token, e
 		AccessToken:  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJHYW5nd2F5VGVzdCIsImlhdCI6MTU0MDA0NjM0NywiZXhwIjoxODg3MjAxNTQ3LCJhdWQiOiJnYW5nd2F5LmhlcHRpby5jb20iLCJzdWIiOiJnYW5nd2F5QGhlcHRpby5jb20iLCJHaXZlbk5hbWUiOiJHYW5nIiwiU3VybmFtZSI6IldheSIsIkVtYWlsIjoiZ2FuZ3dheUBoZXB0aW8uY29tIiwiR3JvdXBzIjoiZGV2LGFkbWluIn0.zNG4Dnxr76J0p4phfsAUYWunioct0krkMiunMynlQsU",
 		RefreshToken: "4567",
 	}, nil
+}
+
+func findInClusters(clusters []clientcmdapi.NamedCluster, name string) (*clientcmdapi.NamedCluster, error) {
+
+	for _, cluster := range clusters {
+		if cluster.Name == name {
+			return &cluster, nil
+		}
+	}
+	return nil, errors.New("Cluster: " + name + " not found in clusters")
+}
+func findInContexts(contexts []clientcmdapi.NamedContext, name string) (*clientcmdapi.NamedContext, error) {
+
+	for _, context := range contexts {
+		if context.Name == name {
+			return &context, nil
+		}
+	}
+	return nil, errors.New("Context: " + name + " not found in contexts")
 }
